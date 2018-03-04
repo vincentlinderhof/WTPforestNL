@@ -1,0 +1,61 @@
+#rpl - drunense
+
+# Preliminaries
+rm(list = ls(all = TRUE))             # Clear workspace
+Sys.setenv(LANG = "en")               # Set language
+setwd("C:/Users/Max/Documents/ThesisMax")                            # Set working directory 
+
+# Loading R packages
+library(haven)                          # allows to read stata data files
+library(support.CEs)                    # for mwtp
+library(gmnl)
+library(mlogit)
+
+data.clogit.all <- read_stata("CE_distance_urban_v2.dta")
+
+#dropping missing values
+#row.has.na <- apply(data.clogit.all, 1, function(x){any(is.na(x))})
+#sum(row.has.na)
+#data.clogit.all2 <- data.clogit.all[!row.has.na,]
+
+data.clogit.all2 <- data.clogit.all[complete.cases(data.clogit.all),]
+
+data.clogit <- subset(data.clogit.all2, data.clogit.all2$Q10_Loc == 2)
+
+
+#generating id.var
+data.clogit$case <- ((data.clogit$DLNMID-7200000)*10) + data.clogit$Q10_Pair
+
+#converting price variable
+data.clogit$Price_real<-0
+data.clogit$Price_real[data.clogit$Price == 6] <- 120
+data.clogit$Price_real[data.clogit$Price == 5] <- 80
+data.clogit$Price_real[data.clogit$Price == 4] <- 50
+data.clogit$Price_real[data.clogit$Price == 3] <- 20
+data.clogit$Price_real[data.clogit$Price == 2] <- 10
+data.clogit$Price_real[data.clogit$Price == 1] <- 2.50
+
+#creating asc
+data.clogit$asc1 <- 0
+data.clogit$asc1[data.clogit$Q10_AorBorSQ == 1] <- 1
+data.clogit$asc2 <- 0
+data.clogit$asc2[data.clogit$Q10_AorBorSQ == 2] <- 1
+
+data <- mlogit.data(data.clogit, choice = "Choicedummy", shape = c("long"), varying = c(9:11,13:16,25), alt.var = "Q10_AorBorSQ", alt.levels = c("1", "2", "3"), id.var = "Q10_Pair")
+
+
+
+results.rpl.basic <- gmnl(Choicedummy ~ asc1 + asc2 + sandy_cycling_track + shelly_cycling_track + natural_forest + private_management + regional_management + local_management + Price_real | 0, 
+                            data = data,
+                            start = c(-0.5, -0.6, 0.1, 0.1, -0.2,  0.1, 0.01, -0.01, 0.1, 0.05),
+                            model = 'mixl',
+                            R = 10,                                 # number of Halton draws 
+                            panel = TRUE,
+                            index = "case",
+                            print.level = 3,
+                            print.init = TRUE,
+                            ranp = c(sandy_cycling_track = "n"),
+                            )
+
+
+summary(results.rpl.basic)
